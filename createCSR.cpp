@@ -1,3 +1,6 @@
+/*-------------------------------------------------------------
+Program description: API to read the graph in Compressed Sparse Row(CSR)
+--------------------------------------------------------------*/
 #include <iostream>
 #include <cstdlib>
 #include <fstream>
