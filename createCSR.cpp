@@ -31,6 +31,8 @@ CSR *createCSR(string str)
     // cin >> csr->e_count;
     fin >> csr->e_count;
 
+    csr->e_count = 2 * csr->e_count;
+
     csr->list_v = (int *)calloc(csr->v_count, sizeof(int));
     csr->list_e = (int *)calloc(csr->e_count, sizeof(int));
 
