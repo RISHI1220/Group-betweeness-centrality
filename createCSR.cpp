@@ -46,7 +46,10 @@ CSR *createCSR(string str)
 
     cout << "Enter edge:" << endl;
     // cin >> left >> right;
-    fin >> left >> right;
+    fin >> left;
+    fin.ignore();
+    fin >> right;
+
     while (ep < csr->e_count && fin.eof() == 0)
     {
         prev = left;
@@ -58,7 +61,9 @@ CSR *createCSR(string str)
             if (ep < csr->e_count && fin.eof() == 0)
             {
                 // cin >> left >> right;
-                fin >> left >> right;
+                fin >> left;
+                fin.ignore();
+                fin >> right;
             }
             // cout << "pe = " << pe << endl;
         }
