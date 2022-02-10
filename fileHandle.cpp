@@ -3,6 +3,27 @@
 #include <fstream>
 using namespace std;
 
+void sort(int *from, int *to, int n)
+{
+    int temp, temp2;
+    for (int i = 0; i < n - 1; i++)
+    {
+        for (int j = i + 1; j < n; j++)
+        {
+            if (from[i] > from[j])
+            {
+                temp = from[i];
+                from[i] = from[j];
+                from[j] = temp;
+
+                temp2 = to[i];
+                to[i] = to[j];
+                to[j] = temp2;
+            }
+        }
+    }
+}
+
 void fileHandle(string str)
 {
     ifstream fin(str);
@@ -25,6 +46,7 @@ void fileHandle(string str)
         to[count] = right;
         count++;
     }
+    sort(from, to, 2 * e_count);
 
     fout << v_count << endl;
     fout << e_count << endl;
@@ -44,5 +66,6 @@ int main()
     string str;
     cin >> str;
     fileHandle(str);
+    cout << "Data sorted at finalData.txt" << endl;
     return 0;
 }
