@@ -24,10 +24,10 @@ CSR *createCSR(string str)
         cout << "Memory initilization failed" << endl;
         exit(0);
     }
-    cout << "Enter number of vertices: " << endl;
+    // cout << "Enter number of vertices: " << endl;
     // cin >> csr->v_count;
     fin >> csr->v_count;
-    cout << "Enter number of edges: " << endl;
+    // cout << "Enter number of edges: " << endl;
     // cin >> csr->e_count;
     fin >> csr->e_count;
 
@@ -44,7 +44,7 @@ CSR *createCSR(string str)
 
     int ep = 0, left, right, prev;
 
-    cout << "Enter edge:" << endl;
+    // cout << "Enter edge:" << endl;
     // cin >> left >> right;
     fin >> left;
     fin.ignore();
@@ -70,13 +70,13 @@ CSR *createCSR(string str)
     }
 
     // vertex and edge list output
-    cout << "V list\t" << endl;
+    cout << "Vertex list / Row list : " << endl;
     for (int i = 0; i < csr->v_count; i++)
     {
         cout << csr->list_v[i] << "\t";
     }
     cout << endl;
-    cout << "E list\t" << endl;
+    cout << "Edge list / Column list : " << endl;
     for (int i = 0; i < csr->e_count; i++)
     {
         cout << csr->list_e[i] << "\t";
