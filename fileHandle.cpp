@@ -1,3 +1,6 @@
+/*
+Used to sort the data file serially with comma seperated values
+*/
 #include <iostream>
 #include <cstdlib>
 #include <fstream>
