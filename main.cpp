@@ -1,10 +1,20 @@
+#include <pthread.h>
 #include <iostream>
 #include <cstdlib>
 #include "createCSR.cpp"
 using namespace std;
 
-void bfs(CSR *adj, int s) // n=no of nodes s= starting node
+struct arg_struct
 {
+    CSR *adj;
+    int s; // starting node
+};
+
+void *bfs(void *args) // n=no of nodes s= starting node
+{
+    arg_struct *ptr = (arg_struct *)args;
+    CSR *adj = ptr->adj;
+    int s = ptr->s;
     if (s > adj->v_count || s < 0)
     {
         cout << "-----Starting node out of bounds-----" << endl;
@@ -89,6 +99,7 @@ void bfs(CSR *adj, int s) // n=no of nodes s= starting node
     free(level);
     free(queue);
     free(parent);
+    return NULL;
 }
 
 int main(int argc, char const *argv[])
@@ -96,6 +107,26 @@ int main(int argc, char const *argv[])
     CSR *ptr = createCSR("data.txt");
     cout << "No of vertices: " << ptr->v_count << endl;
     cout << "No of Edges: " << ptr->e_count << endl;
-    bfs(ptr, 0);
+
+    // initilizing argument structure
+    arg_struct *args = (arg_struct *)malloc(sizeof(arg_struct));
+    args->adj = ptr;
+    args->s = 0; // setting argument values
+
+    // threads initilizing and passing
+    pthread_t t1, t2, t3;
+    int a = 0;
+    pthread_create(&t1, NULL, bfs, (void *)args);
+    args->s++;
+    pthread_create(&t2, NULL, bfs, (void *)args);
+    args->s++;
+    pthread_create(&t3, NULL, bfs, (void *)args);
+
+    pthread_join(t1, NULL);
+    pthread_join(t2, NULL);
+    pthread_join(t3, NULL);
+
+    free(ptr);
+    free(args);
     return 0;
 }
