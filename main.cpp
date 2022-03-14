@@ -34,17 +34,19 @@ void bfs(CSR *adj, int s)
     int w;
     int n = adj->v_count;
     int *level = (int *)calloc(n, sizeof(int));
-    int *parent = (int *)calloc(n, sizeof(int));
     int *queue = (int *)calloc(n, sizeof(int));
+    int *nos = (int *)calloc(n, sizeof(int)); // to calc no of total shortest path from root
     int front = -1, rear = -1, start, end, j;
 
     for (int i = 0; i < n; i++)
     {
-        parent[i] = level[i] = -1;
+        level[i] = -1;
     }
 
-    level[s] = 1;
+    level[s] = 0;
+    nos[s] = 1;
     queue[++rear] = s;
+
     while (front != rear)
     {
         w = queue[++front];
@@ -64,50 +66,23 @@ void bfs(CSR *adj, int s)
             if (level[j] == -1)
             {
                 level[j] = level[w] + 1;
-                parent[j] = w;
                 queue[++rear] = j;
             }
-        }
-    }
-
-    // cout << "Parent: " << endl;
-    // for (int i = 0; i < n; i++)
-    // {
-    //     cout << parent[i] << "\t";
-    // }
-    // cout << endl;
-    // cout << "level: " << endl;
-    // for (int i = 0; i < n; i++)
-    // {
-    //     cout << level[i] << "\t";
-    // }
-    // cout << endl;
-
-    cout << endl;
-    cout << "-----------------  PATH  ------------------" << endl;
-    for (int i = 0; i < n; i++)
-    {
-        // printf("\n%d -> %d : %d ; Path = ", s, i, level[i]);
-        cout << s << " -> " << i << " : " << level[i] - 1 << " ; Path = ";
-        if (i != s)
-        {
-            w = i;
-            cout << w << " ---> ";
-            while (parent[w] != -1)
+            if ((level[j] - 1) == (level[w]))
             {
-                w = parent[w];
-                cout << w;
-                if (parent[w] != -1)
-                {
-                    cout << " ---> ";
-                }
+                nos[j] = nos[j] + nos[w];
             }
         }
-        cout << endl;
     }
+    printf("-----------------  No. of shortest paths from node %d ------------------\n", s);
+    for (int i = 0; i < n; i++)
+    {
+        printf("Node %d is %d\n", i, nos[i]);
+    }
+
     free(level);
     free(queue);
-    free(parent);
+    free(nos);
 }
 
 void executeTask(Task *task)
@@ -153,7 +128,7 @@ void *threadPool(void *args)
 
 int main(int argc, char const *argv[])
 {
-    CSR *csr = createCSR("data.txt");
+    CSR *csr = createCSR("data2.txt");
     cout << "No of vertices: " << csr->v_count << endl;
     cout << "No of Edges: " << csr->e_count << endl;
 
