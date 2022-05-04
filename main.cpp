@@ -4,6 +4,8 @@
 #include <Windows.h>
 #include <semaphore.h>
 #include <time.h>
+#include <queue>
+#include <stack>
 #include "createCSR.cpp"
 using namespace std;
 
@@ -18,8 +20,10 @@ typedef struct Task
 
 Task taskQueue[256]; // array of type task to store different tasks
 int taskCount = 0;   // to keep count of running task
+float *bwc;
 
 pthread_mutex_t mutexQueue; // queue mutex
+pthread_mutex_t mutexBwc;   // betweeness cantrality mutex
 pthread_cond_t condQueue;   // queue condition variable
 
 void bfs(CSR *adj, int s)
@@ -31,12 +35,20 @@ void bfs(CSR *adj, int s)
         exit(0);
     }
 
-    int w;
+    int w, top;
     int n = adj->v_count;
     int *level = (int *)calloc(n, sizeof(int));
-    int *queue = (int *)calloc(n, sizeof(int));
+    int *parent[n];
     int *nos = (int *)calloc(n, sizeof(int)); // to calc no of total shortest path from root
-    int front = -1, rear = -1, start, end, j;
+    float *back = (float *)calloc(n, sizeof(float));
+    queue<int> queue;
+    stack<int> stack;
+    int start, end, j;
+
+    for (int i = 0; i < n; i++)
+    {
+        parent[i] = (int *)calloc(n, sizeof(int));
+    }
 
     for (int i = 0; i < n; i++)
     {
@@ -45,11 +57,13 @@ void bfs(CSR *adj, int s)
 
     level[s] = 0;
     nos[s] = 1;
-    queue[++rear] = s;
+    queue.push(s);
 
-    while (front != rear)
+    while (!queue.empty())
     {
-        w = queue[++front];
+        w = queue.front();
+        queue.pop();
+        stack.push(w);
         start = adj->list_v[w];
         if (w == (n - 1))
         {
@@ -66,23 +80,56 @@ void bfs(CSR *adj, int s)
             if (level[j] == -1)
             {
                 level[j] = level[w] + 1;
-                queue[++rear] = j;
+                queue.push(j);
             }
             if ((level[j] - 1) == (level[w]))
             {
                 nos[j] = nos[j] + nos[w];
+                parent[j][w] = 1;
             }
         }
     }
-    printf("-----------------  No. of shortest paths from node %d ------------------\n", s);
+
     for (int i = 0; i < n; i++)
     {
-        printf("Node %d is %d\n", i, nos[i]);
+        back[i] = 1 / (float)nos[i];
     }
 
+    while (!stack.empty())
+    {
+        top = stack.top();
+        stack.pop();
+
+        for (int v = 0; v < n; v++)
+        {
+            if (parent[top][v] == 1)
+            {
+                back[v] = back[v] + back[top];
+            }
+        }
+    }
+
+    pthread_mutex_lock(&mutexBwc);
+    for (int v = 0; v < n; v++)
+    {
+        if (v != s)
+        {
+            bwc[v] = bwc[v] + (back[v] * (float)nos[v] - 1);
+        }
+    }
+    pthread_mutex_unlock(&mutexBwc);
+
+    // printf("-----------------  No. of shortest paths from node %d ------------------\n", s);
+    // for (int i = 0; i < n; i++)
+    // {
+    //     printf("Node %d is %d - %.3f\n", i, nos[i], back[i]);
+    // }
+
     free(level);
-    free(queue);
     free(nos);
+    // free(parent);
+    for (int i = 0; i < n; i++)
+        free(parent[i]);
 }
 
 void executeTask(Task *task)
@@ -101,7 +148,7 @@ void submitTask(Task task) // to add task to taskQueue which is passed from main
 
 void *threadPool(void *args)
 {
-    while (1)
+    while (taskCount > 0)
     {
         Task task;
         pthread_mutex_lock(&mutexQueue);
@@ -132,9 +179,12 @@ int main(int argc, char const *argv[])
     cout << "No of vertices: " << csr->v_count << endl;
     cout << "No of Edges: " << csr->e_count << endl;
 
+    bwc = (float *)calloc(csr->v_count, sizeof(float));
+
     pthread_t th[THREAD_NUM];
     pthread_mutex_init(&mutexQueue, NULL);
     pthread_cond_init(&condQueue, NULL);
+    pthread_mutex_init(&mutexBwc, NULL);
 
     for (int i = 0; i < THREAD_NUM; i++)
     {
@@ -154,8 +204,14 @@ int main(int argc, char const *argv[])
     {
         pthread_join(th[i], NULL);
     }
+    printf("\n-------Betweeness centrality-------\n");
+    for (int i = 0; i < csr->v_count; i++)
+    {
+        printf("Node %d = %.3f \n", i, bwc[i]);
+    }
 
     pthread_mutex_destroy(&mutexQueue);
     pthread_cond_destroy(&condQueue);
+    pthread_mutex_destroy(&mutexBwc);
     return 0;
 }
