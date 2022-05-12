@@ -1,11 +1,11 @@
 #include <pthread.h>
 #include <iostream>
 #include <cstdlib>
-#include <Windows.h>
 #include <semaphore.h>
 #include <time.h>
 #include <queue>
 #include <stack>
+#include <list>
 #include "createCSR.cpp"
 using namespace std;
 
@@ -38,17 +38,12 @@ void bfs(CSR *adj, int s)
     int w, top;
     int n = adj->v_count;
     int *level = (int *)calloc(n, sizeof(int));
-    int *parent[n];
+    list<int> parent[n];
     int *nos = (int *)calloc(n, sizeof(int)); // to calc no of total shortest path from root
     float *back = (float *)calloc(n, sizeof(float));
     queue<int> queue;
     stack<int> stack;
     int start, end, j;
-
-    for (int i = 0; i < n; i++)
-    {
-        parent[i] = (int *)calloc(n, sizeof(int));
-    }
 
     for (int i = 0; i < n; i++)
     {
@@ -85,7 +80,7 @@ void bfs(CSR *adj, int s)
             if ((level[j] - 1) == (level[w]))
             {
                 nos[j] = nos[j] + nos[w];
-                parent[j][w] = 1;
+                parent[j].push_back(w);
             }
         }
     }
@@ -100,12 +95,9 @@ void bfs(CSR *adj, int s)
         top = stack.top();
         stack.pop();
 
-        for (int v = 0; v < n; v++)
+        for (auto v : parent[top])
         {
-            if (parent[top][v] == 1)
-            {
-                back[v] = back[v] + back[top];
-            }
+            back[v] = back[v] + back[top];
         }
     }
 
@@ -119,17 +111,8 @@ void bfs(CSR *adj, int s)
     }
     pthread_mutex_unlock(&mutexBwc);
 
-    // printf("-----------------  No. of shortest paths from node %d ------------------\n", s);
-    // for (int i = 0; i < n; i++)
-    // {
-    //     printf("Node %d is %d - %.3f\n", i, nos[i], back[i]);
-    // }
-
     free(level);
     free(nos);
-    // free(parent);
-    for (int i = 0; i < n; i++)
-        free(parent[i]);
 }
 
 void executeTask(Task *task)
@@ -175,7 +158,7 @@ void *threadPool(void *args)
 
 int main(int argc, char const *argv[])
 {
-    CSR *csr = createCSR("data2.txt");
+    CSR *csr = createCSR("data3.txt");
     cout << "No of vertices: " << csr->v_count << endl;
     cout << "No of Edges: " << csr->e_count << endl;
 
@@ -207,6 +190,7 @@ int main(int argc, char const *argv[])
     printf("\n-------Betweeness centrality-------\n");
     for (int i = 0; i < csr->v_count; i++)
     {
+        bwc[i] = bwc[i] / 2;
         printf("Node %d = %.3f \n", i, bwc[i]);
     }
 
