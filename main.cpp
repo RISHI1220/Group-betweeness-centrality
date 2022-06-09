@@ -1,6 +1,7 @@
 #include <pthread.h>
 #include <iostream>
 #include <cstdlib>
+#include <cstdio>
 #include <semaphore.h>
 #include <time.h>
 #include <queue>
@@ -20,7 +21,9 @@ typedef struct Task
 
 Task taskQueue[256]; // array of type task to store different tasks
 int taskCount = 0;   // to keep count of running task
-float *bwc;
+float gbc;
+int *group;
+int group_size;
 
 pthread_mutex_t mutexQueue; // queue mutex
 pthread_mutex_t mutexBwc;   // betweeness cantrality mutex
@@ -85,11 +88,6 @@ void bfs(CSR *adj, int s)
         }
     }
 
-    for (int i = 0; i < n; i++)
-    {
-        back[i] = 1 / (float)nos[i];
-    }
-
     while (!stack.empty())
     {
         top = stack.top();
@@ -97,19 +95,34 @@ void bfs(CSR *adj, int s)
 
         for (auto v : parent[top])
         {
-            back[v] = back[v] + back[top];
+            int temp = back[top];
+            for (int i = 0; i < group_size; i++)
+            {
+                if (group[i] == v)
+                {
+                    temp = 0;
+                }
+            }
+            back[v] = back[v] + (((float)nos[v] / (float)nos[top]) * (1 + temp));
+        }
+        for (int i = 0; i < group_size; i++)
+        {
+            if (group[i] == top && group[i] != s)
+            {
+                pthread_mutex_lock(&mutexBwc);
+                gbc = gbc + back[top];
+                pthread_mutex_unlock(&mutexBwc);
+            }
         }
     }
 
-    pthread_mutex_lock(&mutexBwc);
-    for (int v = 0; v < n; v++)
-    {
-        if (v != s)
-        {
-            bwc[v] = bwc[v] + (back[v] * (float)nos[v] - 1);
-        }
-    }
-    pthread_mutex_unlock(&mutexBwc);
+    // for (int v = 0; v < n; v++)
+    // {
+    //     if (v != s)
+    //     {
+    //         bwc[v] = bwc[v] + back[v];
+    //     }
+    // }
 
     free(level);
     free(nos);
@@ -158,11 +171,20 @@ void *threadPool(void *args)
 
 int main(int argc, char const *argv[])
 {
-    CSR *csr = createCSR("data3.txt");
+    CSR *csr = createCSR("data4.txt");
     cout << "No of vertices: " << csr->v_count << endl;
     cout << "No of Edges: " << csr->e_count << endl;
 
-    bwc = (float *)calloc(csr->v_count, sizeof(float));
+    cout << "Enter the length of the group: ";
+    cin >> group_size;
+    group = (int *)calloc(group_size, sizeof(int));
+    gbc = 0;
+
+    cout << "Enter vertices for the group: " << endl;
+    for (int i = 0; i < group_size; i++)
+    {
+        cin >> group[i];
+    }
 
     pthread_t th[THREAD_NUM];
     pthread_mutex_init(&mutexQueue, NULL);
@@ -187,12 +209,9 @@ int main(int argc, char const *argv[])
     {
         pthread_join(th[i], NULL);
     }
-    printf("\n-------Betweeness centrality-------\n");
-    for (int i = 0; i < csr->v_count; i++)
-    {
-        bwc[i] = bwc[i] / 2;
-        printf("Node %d = %.3f \n", i, bwc[i]);
-    }
+    printf("\n-------Group Betweeness centrality-------\n");
+
+    printf("GBC: %f \n", gbc);
 
     pthread_mutex_destroy(&mutexQueue);
     pthread_cond_destroy(&condQueue);
