@@ -211,6 +211,7 @@ int main(int argc, char const *argv[])
     }
     printf("\n-------Group Betweeness centrality-------\n");
 
+    gbc = gbc / 2;
     printf("GBC: %f \n", gbc);
 
     pthread_mutex_destroy(&mutexQueue);
