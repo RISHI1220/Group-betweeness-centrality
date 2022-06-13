@@ -3,7 +3,6 @@
 #include <cstdlib>
 #include <cstdio>
 #include <semaphore.h>
-#include <time.h>
 #include <queue>
 #include <stack>
 #include <list>
@@ -19,8 +18,8 @@ typedef struct Task
     int s;
 } Task; // task structure to store task , adj -> csr matrix, s -> starting node( diff for each threads)
 
-Task taskQueue[256]; // array of type task to store different tasks
-int taskCount = 0;   // to keep count of running task
+Task taskQueue[10000]; // array of type task to store different tasks
+int taskCount = 0;     // to keep count of running task
 float gbc;
 int *group;
 int group_size;
@@ -96,23 +95,17 @@ void bfs(CSR *adj, int s)
         for (auto v : parent[top])
         {
             int temp = back[top];
-            for (int i = 0; i < group_size; i++)
+            if (group[top] == 1)
             {
-                if (group[i] == v)
-                {
-                    temp = 0;
-                }
+                temp = 0;
             }
             back[v] = back[v] + (((float)nos[v] / (float)nos[top]) * (1 + temp));
         }
-        for (int i = 0; i < group_size; i++)
+        if (group[top] == 1 && top != s)
         {
-            if (group[i] == top && group[i] != s)
-            {
-                pthread_mutex_lock(&mutexBwc);
-                gbc = gbc + back[top];
-                pthread_mutex_unlock(&mutexBwc);
-            }
+            pthread_mutex_lock(&mutexBwc);
+            gbc = gbc + back[top];
+            pthread_mutex_unlock(&mutexBwc);
         }
     }
 
@@ -126,6 +119,7 @@ void bfs(CSR *adj, int s)
 
     free(level);
     free(nos);
+    parent->clear();
 }
 
 void executeTask(Task *task)
@@ -177,13 +171,15 @@ int main(int argc, char const *argv[])
 
     cout << "Enter the length of the group: ";
     cin >> group_size;
-    group = (int *)calloc(group_size, sizeof(int));
+    group = (int *)calloc(csr->v_count, sizeof(int));
     gbc = 0;
 
     cout << "Enter vertices for the group: " << endl;
     for (int i = 0; i < group_size; i++)
     {
-        cin >> group[i];
+        int temp;
+        cin >> temp;
+        group[temp] = 1;
     }
 
     pthread_t th[THREAD_NUM];
@@ -217,5 +213,6 @@ int main(int argc, char const *argv[])
     pthread_mutex_destroy(&mutexQueue);
     pthread_cond_destroy(&condQueue);
     pthread_mutex_destroy(&mutexBwc);
+    free(group);
     return 0;
 }

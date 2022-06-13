@@ -70,18 +70,18 @@ CSR *createCSR(string str)
     }
 
     // vertex and edge list output
-    cout << "Vertex list / Row list : " << endl;
-    for (int i = 0; i < csr->v_count; i++)
-    {
-        cout << csr->list_v[i] << "\t";
-    }
-    cout << endl;
-    cout << "Edge list / Column list : " << endl;
-    for (int i = 0; i < csr->e_count; i++)
-    {
-        cout << csr->list_e[i] << "\t";
-    }
-    cout << endl;
+    // cout << "Vertex list / Row list : " << endl;
+    // for (int i = 0; i < csr->v_count; i++)
+    // {
+    //     cout << csr->list_v[i] << "\t";
+    // }
+    // cout << endl;
+    // cout << "Edge list / Column list : " << endl;
+    // for (int i = 0; i < csr->e_count; i++)
+    // {
+    //     cout << csr->list_e[i] << "\t";
+    // }
+    // cout << endl;
     fin.close();
     return csr;
 }
