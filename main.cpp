@@ -6,10 +6,11 @@
 #include <queue>
 #include <stack>
 #include <list>
+#include <chrono>
 #include "createCSR.cpp"
 using namespace std;
 
-#define THREAD_NUM 4 // No of threads
+#define THREAD_NUM 8 // No of threads
 
 typedef struct Task
 {
@@ -18,11 +19,10 @@ typedef struct Task
     int s;
 } Task; // task structure to store task , adj -> csr matrix, s -> starting node( diff for each threads)
 
-Task taskQueue[10000]; // array of type task to store different tasks
-int taskCount = 0;     // to keep count of running task
-float gbc;
-int *group;
-int group_size;
+queue<Task> taskQueue; // array of type task to store different tasks
+float gbc;             // calculate gbc
+int *group;            // to store the group
+int group_size;        // size of the each or one group
 
 pthread_mutex_t mutexQueue; // queue mutex
 pthread_mutex_t mutexBwc;   // betweeness cantrality mutex
@@ -37,15 +37,14 @@ void bfs(CSR *adj, int s)
         exit(0);
     }
 
-    int w, top;
+    int w, top, start, end, j;
     int n = adj->v_count;
-    int *level = (int *)calloc(n, sizeof(int));
     list<int> parent[n];
-    int *nos = (int *)calloc(n, sizeof(int)); // to calc no of total shortest path from root
-    float *back = (float *)calloc(n, sizeof(float));
     queue<int> queue;
     stack<int> stack;
-    int start, end, j;
+    int *level = (int *)calloc(n, sizeof(int));
+    int *nos = (int *)calloc(n, sizeof(int)); // to calc no of total shortest path from root
+    float *back = (float *)calloc(n, sizeof(float));
 
     for (int i = 0; i < n; i++)
     {
@@ -73,12 +72,15 @@ void bfs(CSR *adj, int s)
 
         for (int i = start; i < end; i++)
         {
+            // Path discovery
             j = adj->list_e[i];
             if (level[j] == -1)
             {
                 level[j] = level[w] + 1;
                 queue.push(j);
             }
+
+            // Path counting
             if ((level[j] - 1) == (level[w]))
             {
                 nos[j] = nos[j] + nos[w];
@@ -87,6 +89,7 @@ void bfs(CSR *adj, int s)
         }
     }
 
+    // accumulation or backtracking of dependencies
     while (!stack.empty())
     {
         top = stack.top();
@@ -108,17 +111,9 @@ void bfs(CSR *adj, int s)
             pthread_mutex_unlock(&mutexBwc);
         }
     }
-
-    // for (int v = 0; v < n; v++)
-    // {
-    //     if (v != s)
-    //     {
-    //         bwc[v] = bwc[v] + back[v];
-    //     }
-    // }
-
     free(level);
     free(nos);
+    free(back);
     parent->clear();
 }
 
@@ -130,32 +125,25 @@ void executeTask(Task *task)
 void submitTask(Task task) // to add task to taskQueue which is passed from main
 {
     pthread_mutex_lock(&mutexQueue);
-    taskQueue[taskCount] = task; // add task to task queue
-    taskCount++;
+    taskQueue.push(task); // pushing task to taskQueue
     pthread_mutex_unlock(&mutexQueue);
     pthread_cond_signal(&condQueue); // signalling threadPool when a task is added
 }
 
 void *threadPool(void *args)
 {
-    while (taskCount > 0)
+    while (!taskQueue.empty())
     {
         Task task;
         pthread_mutex_lock(&mutexQueue);
 
-        while (taskCount == 0)
+        while (taskQueue.empty())
         {
             pthread_cond_wait(&condQueue, &mutexQueue); // condition variable to wait here until a task is added by submit task
         }
 
-        task = taskQueue[0]; // picking task from taskQueue
-        for (int i = 0; i < taskCount - 1; i++)
-        {
-            taskQueue[i] = taskQueue[i + 1]; // shifting all remaining task to first
-            // 1 2 3 4 5
-            // 2 3 4 5
-        }
-        taskCount--;
+        task = taskQueue.front(); // picking task from taskQueue
+        taskQueue.pop();
 
         pthread_mutex_unlock(&mutexQueue);
         executeTask(&task); // passing the top task extracted to be executed
@@ -165,7 +153,7 @@ void *threadPool(void *args)
 
 int main(int argc, char const *argv[])
 {
-    CSR *csr = createCSR("data4.txt");
+    CSR *csr = createCSR("facebook.txt");
     cout << "No of vertices: " << csr->v_count << endl;
     cout << "No of Edges: " << csr->e_count << endl;
 
@@ -173,6 +161,8 @@ int main(int argc, char const *argv[])
     cin >> group_size;
     group = (int *)calloc(csr->v_count, sizeof(int));
     gbc = 0;
+
+    double norm = ((csr->v_count - group_size) * (csr->v_count - group_size - 1));
 
     cout << "Enter vertices for the group: " << endl;
     for (int i = 0; i < group_size; i++)
@@ -186,6 +176,8 @@ int main(int argc, char const *argv[])
     pthread_mutex_init(&mutexQueue, NULL);
     pthread_cond_init(&condQueue, NULL);
     pthread_mutex_init(&mutexBwc, NULL);
+
+    auto start = chrono::high_resolution_clock::now();
 
     for (int i = 0; i < THREAD_NUM; i++)
     {
@@ -205,11 +197,16 @@ int main(int argc, char const *argv[])
     {
         pthread_join(th[i], NULL);
     }
+
+    auto end = chrono::high_resolution_clock::now();
+    chrono::duration<float> duration = end - start;
     printf("\n-------Group Betweeness centrality-------\n");
 
-    gbc = gbc / 2;
-    printf("GBC: %f \n", gbc);
+    gbc = gbc / 2;          // Rescaling due to bidirectional graph
+    gbc = gbc * (1 / norm); // normalization
 
+    printf("GBC: %f \n", gbc);
+    cout << "Time taken to execute: " << duration.count() << "s" << endl;
     pthread_mutex_destroy(&mutexQueue);
     pthread_cond_destroy(&condQueue);
     pthread_mutex_destroy(&mutexBwc);
