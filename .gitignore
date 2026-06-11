@@ -1,3 +1,5 @@
-a.exe
+build/
+*.o
+*.exe
+a.out
 finalData.txt
-main.exe
