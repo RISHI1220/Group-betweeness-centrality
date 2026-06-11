@@ -26,23 +26,21 @@ which always produce the same number (the program checks this for you).
 ## 2. Repository map
 
 ```
-include/
-  csr.hpp          Graph data structure (Compressed Sparse Row) + loader declaration
-  gbc.hpp          GBCResult struct + serial/parallel function declarations
 src/
-  csr.cpp          Reads a graph file → builds the CSR structure
-  gbc.cpp          THE CORE: BFS-based GBC, shared by both engines
-  main.cpp         Command-line front end (arg parsing, I/O, timing, reporting)
-  normalize_graph.cpp   Standalone helper to canonicalize a graph file
-test/
-  test_gbc.cpp     Correctness suite: brute-force cross-check + serial==parallel
-datas/             Sample graphs (data4, dolphins, football, facebook, wiki, …)
-Makefile           Build rules
+  lib.rs                 Library root: re-exports the csr + gbc modules
+  csr.rs                 Graph data structure (Compressed Sparse Row) + loader
+  gbc.rs                 THE CORE: BFS-based GBC, shared by both engines
+  main.rs                Command-line front end (arg parsing, I/O, timing, reporting)
+  bin/normalize_graph.rs Standalone helper to canonicalize a graph file
+tests/
+  test_gbc.rs            Correctness suite: brute-force cross-check + serial==parallel
+datas/                   Sample graphs (data4, dolphins, football, facebook, wiki, …)
+Cargo.toml               Crate + binary definitions
 ```
 
-Three programs are built: **`gbc`** (the main app), **`normalize-graph`** (the
-utility), and **`test-gbc`** (the tests). All three share the compiled
-`csr.o` + `gbc.o` core.
+Two binaries are built: **`gbc`** (the main app) and **`normalize-graph`** (the
+utility); the correctness suite runs via `cargo test`. The `gbc` binary and the
+tests share the `gbc` library crate (`csr` + `gbc` modules).
 
 ---
 
@@ -52,13 +50,13 @@ A graph could be stored as a 2-D adjacency matrix, but for sparse graphs that
 wastes huge amounts of memory. Instead we use **CSR**, which stores only the
 edges that exist, in two flat arrays.
 
-```cpp
-struct CSR {
-    int v_count;                     // number of vertices
-    long long e_count;               // number of directed entries (2 × undirected edges)
-    std::vector<long long> row_ptr;  // size v_count + 1
-    std::vector<int>       col_idx;  // size e_count
-};
+```rust
+pub struct Csr {
+    pub v_count: usize,        // number of vertices
+    pub e_count: usize,        // number of directed entries (2 × undirected edges)
+    pub row_ptr: Vec<usize>,   // size v_count + 1
+    pub col_idx: Vec<u32>,     // size e_count
+}
 ```
 
 The trick: **the neighbours of vertex `v` are exactly**
@@ -118,7 +116,7 @@ To read vertex 5's neighbours: `row_ptr[5]=10`, `row_ptr[6]=13`, so
             │
             ▼
    ┌──────────────────┐   load_csr()           reads header + all directed edges,
-   │   src/csr.cpp    │ ─────────────────────►  counting-sort build (order-independent,
+   │   src/csr.rs     │ ─────────────────────►  counting-sort build (order-independent,
    └──────────────────┘                         handles isolated vertices)
             │
             ▼
@@ -127,12 +125,12 @@ To read vertex 5's neighbours: `row_ptr[5]=10`, `row_ptr[6]=13`, so
    group choice (CLI / prompt)    │
             │                     │
             ▼                     ▼
-   ┌──────────────────┐    in_group[] (1 = member), group_size
-   │   src/main.cpp   │
+   ┌──────────────────┐    in_group[] (true = member), group_size
+   │   src/main.rs    │
    └──────────────────┘
             │  calls
             ├──────────────► gbc_serial(...)   ┐
-            └──────────────► gbc_parallel(...) ┤  src/gbc.cpp  (shared core)
+            └──────────────► gbc_parallel(...) ┤  src/gbc.rs  (shared core)
                                                │
                               both call source_contribution() per source vertex
                                                │
@@ -150,21 +148,22 @@ To read vertex 5's neighbours: `row_ptr[5]=10`, `row_ptr[6]=13`, so
 Take this command:
 
 ```sh
-./build/gbc datas/data4.txt --group 2
+./target/release/gbc datas/data4.txt --group 2
 ```
 
-1. **Parse arguments** (`main.cpp`). First positional arg = graph file. Flags:
+1. **Parse arguments** (`main.rs`). First positional arg = graph file. Flags:
    `--group`, `--threads` (default = hardware thread count), `--mode`
    (`both`/`serial`/`parallel`, default `both`).
 2. **Load the graph** → `load_csr("datas/data4.txt")` returns the CSR struct.
-   Errors (missing file, bad header, out-of-range endpoint) throw and exit cleanly.
+   Errors (missing file, bad header, out-of-range endpoint) return an `Err` and
+   exit cleanly.
 3. **Print graph stats** (vertices, directed/undirected edge counts).
 4. **Resolve the group.** From `--group 2`, or by prompting interactively if the
-   flag is absent. Build `in_group` (a `vector<char>`, `1` at each member) and
+   flag is absent. Build `in_group` (a `Vec<bool>`, `true` at each member) and
    count distinct members → `group_size`. Validate ids are in range and that at
    least two non-group vertices remain.
 5. **Run the engine(s).** For each requested mode, time it with
-   `std::chrono::high_resolution_clock` and call `gbc_serial` / `gbc_parallel`.
+   `std::time::Instant` and call `gbc_serial` / `gbc_parallel`.
 6. **Report.** Print `rescaled` and `normalized` GBC plus elapsed time. In `both`
    mode, also print the **speedup** and assert the two results agree to `1e-6`.
 
@@ -172,7 +171,7 @@ Take this command:
 
 ## 6. The algorithm, in depth
 
-All the real work lives in **`source_contribution()`** in `src/gbc.cpp`. It runs
+All the real work lives in **`source_contribution()`** in `src/gbc.rs`. It runs
 **one Breadth-First Search per source vertex** and is the heart of everything.
 
 ### 6.1 What we want from each source `s`
@@ -349,7 +348,7 @@ normalized = 19 / ((7−1)(7−1−1)) = 19/30  = 0.633333…
 ### Check against the program
 
 ```sh
-$ ./build/gbc datas/data4.txt --group 2 --mode serial
+$ ./target/release/gbc datas/data4.txt --group 2 --mode serial
 ...
   GBC (rescaled):   9.500000
   GBC (normalized): 0.633333
@@ -371,13 +370,15 @@ Both engines call the identical `source_contribution()`; they differ only in
 **Parallel** (`gbc_parallel`):
 
 ```
-atomic<int> next_source = 0
-spawn N std::thread workers, each:
-    local = 0
-    while (s = next_source.fetch_add(1)) < v_count:
+AtomicUsize next_source = 0
+thread::scope → spawn N scoped workers, each:
+    local = 0.0
+    loop:
+        s = next_source.fetch_add(1)
+        if s >= v_count: break
         if s ∉ group: local += source_contribution(g, in_group, s)
-    partial[thread_id] = local
-join all; raw = Σ partial
+    return local
+join all; raw = Σ locals
 ```
 
 Key design choices:
@@ -386,15 +387,17 @@ Key design choices:
   next source whenever it's free. BFS cost varies per source, so this beats a
   fixed split.
 - **No lock on the hot path** — every worker accumulates into its own `local`
-  variable and writes one `partial[]` slot. The single reduction happens after
-  the join, so there's no contention while computing.
+  variable and returns it from the scoped thread. The single reduction happens
+  after the join, so there's no contention while computing.
+- **Scoped threads** (`std::thread::scope`) let the workers borrow the graph and
+  `in_group` directly, with no `Arc`/cloning and no `unsafe`.
 
 This is why the results are **bit-for-bit comparable** and the program can assert
 `|serial − parallel| < 1e-6`.
 
 ---
 
-## 9. The correctness test (`test/test_gbc.cpp`)
+## 9. The correctness test (`tests/test_gbc.rs`)
 
 The test guards against silent algorithm regressions using an **independent**
 method:
@@ -405,20 +408,20 @@ method:
    - `serial == brute force` (the algorithm is correct), and
    - `serial == parallel` (the two engines agree).
 
-`make test` runs it; all 28 cases must report `PASS`.
+`cargo test` runs it; all 29 cases must pass (the test fails otherwise).
 
 ---
 
 ## 10. The `normalize-graph` utility
 
-`src/normalize_graph.cpp` is a small standalone tool to put an arbitrary edge
+`src/bin/normalize_graph.rs` is a small standalone tool to put an arbitrary edge
 list into the canonical format the loader expects: it reads any
 comma/whitespace-separated edges, **deduplicates**, **adds both directions**
-(symmetry), and **sorts** them, then writes the `v_count / e_count / edges`
-format. Handy when adding a new dataset.
+(symmetry via a `BTreeSet`, which also keeps them sorted), then writes the
+`v_count / e_count / edges` format. Handy when adding a new dataset.
 
 ```sh
-./build/normalize-graph raw_edges.txt clean_graph.txt
+./target/release/normalize-graph raw_edges.txt clean_graph.txt
 ```
 
 ---
@@ -426,15 +429,15 @@ format. Handy when adding a new dataset.
 ## 11. Building it
 
 ```sh
-make            # builds build/gbc, build/normalize-graph, build/test-gbc
-make test       # runs the correctness suite
-make run        # demo: ./build/gbc datas/data4.txt --group 2,5
-make clean
+cargo build --release    # builds target/release/{gbc, normalize-graph}
+cargo test --release     # runs the correctness suite
+cargo run --release --bin gbc -- datas/data4.txt --group 2,5   # demo
 ```
 
-The Makefile compiles `csr.cpp` and `gbc.cpp` once into shared objects, then
-links them into each of the three programs. Flags: `-std=c++17 -O2 -Wall -Wextra`,
-linked with `-pthread`.
+Cargo compiles the `csr` + `gbc` modules into the `gbc` library crate once and
+links it into the `gbc` binary and the integration test. The release profile uses
+`opt-level = 3` with LTO; threading is the standard library's `std::thread`, so
+there are no external dependencies.
 
 ---
 
@@ -445,5 +448,5 @@ vertices. For every other vertex as a source, a **single BFS** counts both the
 total shortest paths (`sigma`) and the shortest paths that *avoid* the group
 (`avoid`); `1 − avoid/sigma` is the fraction of that source's traffic the group
 intercepts. Summed over all sources and rescaled, that's the **Group Betweenness
-Centrality** — computed identically by a serial loop and a lock-free
-`std::thread` pool, and verified against a brute-force reference.
+Centrality** — computed identically by a serial loop and a lock-free pool of
+scoped `std::thread` workers, and verified against a brute-force reference.

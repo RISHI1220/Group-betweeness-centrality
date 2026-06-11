@@ -37,13 +37,13 @@ The result is reported three ways:
 ## Layout
 
 ```
-include/        csr.hpp, gbc.hpp           public interfaces
-src/csr.cpp     graph loading into CSR
-src/gbc.cpp     serial + parallel GBC core (shared)
-src/main.cpp    command-line runner
-src/normalize_graph.cpp   dataset normalizer utility
-test/test_gbc.cpp         brute-force correctness suite
-datas/          sample graphs (dolphins, football, facebook, wiki, …)
+src/csr.rs                graph loading into CSR (library)
+src/gbc.rs                serial + parallel GBC core (library)
+src/lib.rs                library root
+src/main.rs               `gbc` command-line runner
+src/bin/normalize_graph.rs  `normalize-graph` dataset normalizer utility
+tests/test_gbc.rs         brute-force correctness suite
+datas/                    sample graphs (dolphins, football, facebook, wiki, …)
 ```
 
 The graph is held in **Compressed Sparse Row** form; construction is
@@ -51,19 +51,18 @@ order-independent (counting sort) and handles isolated vertices.
 
 ## Build
 
-Requires a C++17 compiler.
+Requires a Rust toolchain (`cargo`, stable; uses only the standard library).
 
 ```sh
-make            # builds build/gbc, build/normalize-graph, build/test-gbc
-make test       # runs the correctness suite
-make run        # quick demo on datas/data4.txt
-make clean
+cargo build --release    # builds target/release/{gbc, normalize-graph}
+cargo test --release     # runs the correctness suite
+cargo run --release --bin gbc -- datas/data4.txt --group 2,5   # quick demo
 ```
 
 ## Usage
 
 ```sh
-./build/gbc <graph-file> [options]
+./target/release/gbc <graph-file> [options]
 
   --group v1,v2,...   group vertices (if omitted, you are prompted)
   --threads N         worker threads for the parallel run (default: hardware)
@@ -73,7 +72,7 @@ make clean
 Example:
 
 ```sh
-./build/gbc datas/facebook.txt --group 0,107,1684 --threads 8
+./target/release/gbc datas/facebook.txt --group 0,107,1684 --threads 8
 ```
 
 ```
@@ -110,13 +109,14 @@ appears only once, the reverse is added automatically. To canonicalize an
 arbitrary edge list, use:
 
 ```sh
-./build/normalize-graph input.txt output.txt
+./target/release/normalize-graph input.txt output.txt
 ```
 
 ## Parallelism
 
-The parallel path uses `std::thread` workers that pull sources from a shared
-`std::atomic` counter (dynamic load balancing, since per-source BFS cost
+The parallel path uses scoped `std::thread` workers that pull sources from a
+shared `AtomicUsize` counter (dynamic load balancing, since per-source BFS cost
 varies). Each worker accumulates a private partial sum, so there is no
 contention on the result — the totals are reduced once at the end. The test
-suite asserts the serial and parallel results are identical.
+suite asserts the serial and parallel results are identical. No external crates
+are used; the implementation is pure standard library.

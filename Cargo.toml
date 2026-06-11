@@ -1,0 +1,23 @@
+[package]
+name = "gbc"
+version = "0.1.0"
+edition = "2021"
+description = "Group Betweenness Centrality — serial and multithreaded"
+license = "MIT"
+
+[lib]
+name = "gbc"
+path = "src/lib.rs"
+
+[[bin]]
+name = "gbc"
+path = "src/main.rs"
+
+[[bin]]
+name = "normalize-graph"
+path = "src/bin/normalize_graph.rs"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
